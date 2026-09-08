@@ -93,9 +93,20 @@ int f_wm00_stockNo(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection * conn)
 		case DB_KIND_ORACLE:		// Oracle 数据库
 		default:					// 所有数据库适用，通用SQL语句
 
+// DM8 适配 CHANGE-241:查询。SYSIBM 辅助表改为 DUAL。
+// 改写原因：SYSIBM 辅助表改为 DUAL；依据 DM 官方文档,DM8 尚未实测。
+// 本共用分支面向 DM8,其他 DB_KIND 标签也会执行此 SQL;参数、结果列、条件与排序保持不变。
+// 原 SQL（完整保留）：
+			// sqlstr =
+				// //" SELECT ' ' AS STOCK_NO, ' ' AS STOCK_DESC FROM DUAL UNION ALL"
+				// " SELECT ' ' AS STOCK_NO, ' ' AS STOCK_DESC FROM SYSIBM.SYSDUMMY1 UNION ALL"
+				// 
+				// " SELECT T2.STOCK_NO, T2.STOCK_DESC"
+				// " FROM TWM01 T2";
+// DM8 SQL：
 			sqlstr =
 				//" SELECT ' ' AS STOCK_NO, ' ' AS STOCK_DESC FROM DUAL UNION ALL"
-				" SELECT ' ' AS STOCK_NO, ' ' AS STOCK_DESC FROM SYSIBM.SYSDUMMY1 UNION ALL"
+				" SELECT ' ' AS STOCK_NO, ' ' AS STOCK_DESC FROM DUAL UNION ALL"
 				
 				" SELECT T2.STOCK_NO, T2.STOCK_DESC"
 				" FROM TWM01 T2";

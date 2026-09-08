@@ -71,9 +71,21 @@ int f_wm00_pile_comf(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection * con
 		Log::Debug("", __FUNCTION__, "垛位推荐开始（第三层）");
 
 		Log::Debug("", __FUNCTION__, "***D1**18小时内使用垛位集推荐开始**D1***");
+// DM8 适配 CHANGE-235:查询 24 小时内使用过的垛位集(STOCK_PLACE_NO),供 D1 循环推荐。
+// 改写原因：DB2 两参数 TIMESTAMPDIFF(4=分钟,垛位 24 小时内使用过) 在 DM8 无对应写法,按 HR-002 确认口径①(实际完整时长)
+//   改为 DATEDIFF(SECOND,起点=FIELDNO_UPTIME,终点=当前时间)/60 <= 24*60,整数除法与 DB2 截断行为一致。
+//   FIELDNO_UPTIME 按原程序注释为字符型时间,用 TO_DATE(FIELDNO_UPTIME,'YYYY-MM-DD HH24:MI:SS') 显式转换;
+//   当前时点沿用 CURRENT_TIMESTAMP(DM 官方函数手册支持);依据 DM 官方文档,DM8 尚未实测。
+// 本共用分支面向 DM8,其他 DB_KIND 标签也会执行此 SQL;参数、结果列、条件与排序保持不变。
+// 原 SQL（完整保留）：
+		// sqlstr = "SELECT STOCK_PLACE_NO FROM TWM04 WHERE stock_no  = 'SA4' AND PILE_MAIN_NO = @v_circle "
+			// " AND(PILE_MAT_NUM_ACT + PRE_MAT_NUM) < MAX_HEIGHT AND MAX_HEIGHT > 0 AND STOCK_STATUS = '0'"
+			// " AND timestampdiff(4, char(current timestamp - timestamp(FIELDNO_UPTIME))) <= 24 * 60 "/*原程序current timestamp - TO_DATE(FIELDNO_UPTIME,'YYYY-MM-DD HH24:MI:SS') <= 24*60*60*/
+			// " ORDER BY FIELDNO_UPTIME DESC, PILE_FIELDNO_NO ASC ";
+// DM8 SQL：
 		sqlstr = "SELECT STOCK_PLACE_NO FROM TWM04 WHERE stock_no  = 'SA4' AND PILE_MAIN_NO = @v_circle "
 			" AND(PILE_MAT_NUM_ACT + PRE_MAT_NUM) < MAX_HEIGHT AND MAX_HEIGHT > 0 AND STOCK_STATUS = '0'"
-			" AND timestampdiff(4, char(current timestamp - timestamp(FIELDNO_UPTIME))) <= 24 * 60 "/*原程序current timestamp - TO_DATE(FIELDNO_UPTIME,'YYYY-MM-DD HH24:MI:SS') <= 24*60*60*/
+			" AND DATEDIFF(SECOND, TO_DATE(FIELDNO_UPTIME, 'YYYY-MM-DD HH24:MI:SS'), CURRENT_TIMESTAMP) / 60 <= 24 * 60 "/*原程序current timestamp - TO_DATE(FIELDNO_UPTIME,'YYYY-MM-DD HH24:MI:SS') <= 24*60*60*/
 			" ORDER BY FIELDNO_UPTIME DESC, PILE_FIELDNO_NO ASC ";
 		cmd_inq.Close();
 		cmd_inq.SetCommandText(sqlstr);
@@ -250,10 +262,23 @@ int f_wm00_pile_comf(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection * con
 		{
 			Log::Debug("", __FUNCTION__, "***D2**未使用的空垛位集推荐开始**D2***");
 
+// DM8 适配 CHANGE-236:查询。见改写原因。
+// 改写原因：DB2 两参数 TIMESTAMPDIFF(4=分钟,垛位 24 小时内使用过) 在 DM8 无对应写法,按 HR-002 确认口径①(实际完整时长)
+//   改为 DATEDIFF(SECOND,起点=FIELDNO_UPTIME,终点=当前时间)/60 <= 24*60,整数除法与 DB2 截断行为一致。
+//   FIELDNO_UPTIME 按原程序注释为字符型时间,用 TO_DATE(FIELDNO_UPTIME,'YYYY-MM-DD HH24:MI:SS') 显式转换;
+//   当前时点沿用 CURRENT_TIMESTAMP(DM 官方函数手册支持);依据 DM 官方文档,DM8 尚未实测。
+// 本共用分支面向 DM8,其他 DB_KIND 标签也会执行此 SQL;参数、结果列、条件与排序保持不变。
+// 原 SQL（完整保留）：
+			// sqlstr = "SELECT STOCK_PLACE_NO FROM twm04 WHERE	stock_no  = 'SA4' AND PILE_ASSIS_NO = @v_circle_1 AND PILE_MAT_NUM_ACT > 0 "
+				// " AND PILE_MAT_NUM_ACT < MAX_HEIGHT AND MAX_HEIGHT > 0 AND PRE_MAT_NUM = 0"
+				// " AND STOCK_STATUS = '0' AND STORE_AREA = '1' AND FIELDNO = '9' AND PILE_MAIN_NO <> @v_circle "
+				// " AND timestampdiff(4, char(current timestamp - timestamp(FIELDNO_UPTIME))) <= 24 * 60"
+				// " ORDER BY PILE_MAT_NUM_ACT DESC";
+// DM8 SQL：
 			sqlstr = "SELECT STOCK_PLACE_NO FROM twm04 WHERE	stock_no  = 'SA4' AND PILE_ASSIS_NO = @v_circle_1 AND PILE_MAT_NUM_ACT > 0 "
 				" AND PILE_MAT_NUM_ACT < MAX_HEIGHT AND MAX_HEIGHT > 0 AND PRE_MAT_NUM = 0"
 				" AND STOCK_STATUS = '0' AND STORE_AREA = '1' AND FIELDNO = '9' AND PILE_MAIN_NO <> @v_circle "
-				" AND timestampdiff(4, char(current timestamp - timestamp(FIELDNO_UPTIME))) <= 24 * 60"
+				" AND DATEDIFF(SECOND, TO_DATE(FIELDNO_UPTIME, 'YYYY-MM-DD HH24:MI:SS'), CURRENT_TIMESTAMP) / 60 <= 24 * 60"
 				" ORDER BY PILE_MAT_NUM_ACT DESC";
 			cmd_inq.Close();
 			cmd_inq.SetCommandText(sqlstr);

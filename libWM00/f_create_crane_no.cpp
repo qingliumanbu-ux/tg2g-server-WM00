@@ -138,8 +138,18 @@ int f_create_crane_no(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection * co
 				doFlag = -1;
 				throw CApplicationException(-1, s.msg, log.Location);
 			}
-			sqlstr = "SELECT timestampdiff(8, CHAR(TIMESTAMP(to_date('" + dateNow14 + "', 'yyyy-mm-dd hh24:mi:ss')) - TIMESTAMP(to_date('" + tmmsm01["SLAB_CUT_TIME"].ToString() + "', 'yyyy-mm-dd hh24:mi:ss')))) AS diffTimes16"
-				" FROM sysibm.sysdummy1";
+// DM8 适配 CHANGE-234:查询板坯冷却小时数(diffTimes16),与垛位 COLD_HOT_REQ 冷却要求比较。
+// 改写原因：DB2 两参数 TIMESTAMPDIFF(8=小时,当前时间减切断时间=板坯冷却小时数) 在 DM8 无对应写法,按 HR-002 确认口径①(实际完整时长)
+//   改为 DATEDIFF(SECOND,起点=切断时间,终点=当前时间)/3600,整数除法与 DB2 截断行为一致。
+//   时间值为 14 位 YYYYMMDDHH24MISS(HR-001 已确认),原 to_date(x,'yyyy-mm-dd hh24:mi:ss') 格式串与值不匹配,改为 TO_TIMESTAMP(x,'YYYYMMDDHH24MISS'),外层 TIMESTAMP() 包装一并去除;
+//   SYSIBM 辅助表改为 DUAL;依据 DM 官方文档,DM8 尚未实测。
+// 本共用分支面向 DM8,其他 DB_KIND 标签也会执行此 SQL;参数、结果列、条件与排序保持不变。
+// 原 SQL（完整保留）：
+			// sqlstr = "SELECT timestampdiff(8, CHAR(TIMESTAMP(to_date('" + dateNow14 + "', 'yyyy-mm-dd hh24:mi:ss')) - TIMESTAMP(to_date('" + tmmsm01["SLAB_CUT_TIME"].ToString() + "', 'yyyy-mm-dd hh24:mi:ss')))) AS diffTimes16"
+				// " FROM sysibm.sysdummy1";
+// DM8 SQL：
+			sqlstr = "SELECT DATEDIFF(SECOND, TO_TIMESTAMP('" + tmmsm01["SLAB_CUT_TIME"].ToString() + "','YYYYMMDDHH24MISS'), TO_TIMESTAMP('" + dateNow14 + "','YYYYMMDDHH24MISS')) / 3600 AS diffTimes16"
+				" FROM DUAL";
 			cmd_inq.Close();
 			cmd_inq.SetCommandText(sqlstr);
 			Log::Trace("", __FUNCTION__, "sqlstr = [{0}]", sqlstr);

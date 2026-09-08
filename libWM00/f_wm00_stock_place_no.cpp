@@ -129,33 +129,66 @@ int f_wm00_stock_place_no(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection 
 
 			if (0 == strcmp(x1j197b.loc_code, "39"))//20180509增加在线宽度数据上传
 			{
-				EXEC SQL
-					UPDATE TMMSM01
-					SET DEFECT_WT = :x1j197b.head_width,
-						SPARE_ITEM_N3 = : x1j197b.tail_width
-						WHERE mat_no = : tmmsm01.mat_no AND mat_position = '1'
-						;
-
-				if (sqlca.sqlcode == M_NO_DATA_FOUND)
-				{
-					EDLog(1, 1, "处理失败，板坯号码不存在！");
-					doFlag = 0;
-					s.sqlcode = 0;
-					goto l_return;
-				}
-				else
+				// DM8 适配 CHANGE-EXEC-003:更新缺陷重量/尾宽;EXEC SQL 改为 CDbCommand(方案B)。
+				// 原方案A(EXEC SQL + sqlca,完整保留):
+				// EXEC SQL
+				// UPDATE TMMSM01
+				// SET DEFECT_WT = :x1j197b.head_width,
+				// SPARE_ITEM_N3 = : x1j197b.tail_width
+				// WHERE mat_no = : tmmsm01.mat_no AND mat_position = '1'
+				// ;
+				// if (sqlca.sqlcode == M_NO_DATA_FOUND)
+				// {
+				// EDLog(1, 1, "处理失败，板坯号码不存在！");
+				// doFlag = 0;
+				// s.sqlcode = 0;
+				// goto l_return;
+				// }
+				// else
+				// 方案B(CDbCommand):
+					sqlstr = " UPDATE TMMSM01 SET DEFECT_WT = ?, SPARE_ITEM_N3 = ? WHERE mat_no = ? AND mat_position = '1'";
+					cmd_upd.SetCommandText(sqlstr);
+					cmd_upd.Parameters.Set("head_width", x1j197b.head_width);
+					cmd_upd.Parameters.Set("tail_width", x1j197b.tail_width);
+					cmd_upd.Parameters.Set("mat_no", tmmsm01.mat_no);
+					cmd_upd.Execute();
+					if (cmd_upd.GetLastError() != 0)  // 等价于 sqlca.sqlcode != 0
+					{
+						EDLog(1, 1, "处理失败，板坯号码不存在！");
+						doFlag = 0;
+						s.sqlcode = 0;
+						goto l_return;
+					}
 				{
 					//增加对板坯宽度的处理（2019-6-13）
 					//取宽度控制开关							
-					EXEC SQL select * into :tmmsm01 from tmmsm01 where mat_no = : tmmsm01.mat_no and mat_position in('1', '2');
-					if (sqlca.sqlcode == M_NO_DATA_FOUND)
+					// DM8 适配 CHANGE-EXEC-001:按板坯号查 tmmsm01;EXEC SQL 改为 CDbCommand(方案B试点)。
+					// 改写原因:EXEC SQL 需 DB2 预编译器;方案B 改为 CDbCommand 消除预编译器依赖。
+					// 注意:方案A/B 并存,后期确认构建系统支持 DM dpc 后二选一。
+					// 原方案A(EXEC SQL,完整保留):
+					// EXEC SQL select * into :tmmsm01 from tmmsm01 where mat_no = : tmmsm01.mat_no and mat_position in('1', '2');
+					// 原 sqlca 判断(完整保留):
+					// if (sqlca.sqlcode == M_NO_DATA_FOUND)
+					// 方案B(CDbCommand):
+						sqlstr = " SELECT * FROM tmmsm01 WHERE mat_no = ? AND mat_position IN('1','2')";
+						cmd_inq.SetCommandText(sqlstr);
+						cmd_inq.Parameters.Set("mat_no", tmmsm01.mat_no);
+						cmd_inq.ExecuteQuery(tmmsm01);
+						if (tmmsm01.Rows.get_Count() == 0)  // 等价于 sqlca.sqlcode == M_NO_DATA_FOUND
 					{
 						EDLog(1, 1, "板坯不在炼钢范围内，不处置！");
 						doFlag = 0;
 						s.sqlcode = 0;
 						goto l_return;
 					}
-					EXEC SQL select * into :tep0002 from tep0002 where code_class = 'YMWD' and code = : tmmsm01.strand_no;
+					// DM8 适配 CHANGE-EXEC-004:按 code_class=YMWD 查 tep0002;EXEC SQL 改为 CDbCommand(方案B)。
+					// 原方案A(EXEC SQL,完整保留):
+					// EXEC SQL select * into :tep0002 from tep0002 where code_class = 'YMWD' and code = : tmmsm01.strand_no;
+					// 方案B(CDbCommand):
+						sqlstr = " SELECT * FROM tep0002 WHERE code_class = 'YMWD' AND code = ?";
+						cmd_inq.SetCommandText(sqlstr);
+						cmd_inq.Parameters.Set("code", tmmsm01.strand_no);
+						cmd_inq.ExecuteQuery(tep0002);
 					EDLog(1, 1, " **************%s  ----tmmsm01.mat_no *****************", tmmsm01.mat_no);
 					EDLog(1, 1, " **************%s  ----tmmsm01.mat_position ***********", tmmsm01.mat_position);
 
@@ -808,7 +841,15 @@ int f_wm00_stock_place_no(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection 
 				}
 			}
 
-			EXEC SQL select * into :tmmsm01 from tmmsm01 where mat_no = : tmmsm01.mat_no and mat_position = '1';
+			// DM8 适配 CHANGE-EXEC-002:按板坯号查 tmmsm01(仅 mat_position='1');EXEC SQL 改为 CDbCommand(方案B试点)。
+			// 改写原因:同 CHANGE-EXEC-001。
+			// 原方案A(EXEC SQL,完整保留):
+			// EXEC SQL select * into :tmmsm01 from tmmsm01 where mat_no = : tmmsm01.mat_no and mat_position = '1';
+			// 方案B(CDbCommand):
+				sqlstr = " SELECT * FROM tmmsm01 WHERE mat_no = ? AND mat_position = '1'";
+				cmd_inq.SetCommandText(sqlstr);
+				cmd_inq.Parameters.Set("mat_no", tmmsm01.mat_no);
+				cmd_inq.ExecuteQuery(tmmsm01);
 			EDLog(1, 1, " **************%s  ----tmmsm01.mat_no *****************", tmmsm01.mat_no);
 			EDLog(1, 1, " **************%s  ----tmmsm01.mat_position *****************", tmmsm01.mat_position);
 
@@ -1132,16 +1173,32 @@ int f_wm00_stock_place_no(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection 
 					//LWB20140424 TYMSM44已经有板坯信息，不进行删除，否则已有的其他信息将被删除   
 					/*EXEC SQL delete from tymsm44 where mat_no =:tmmsm01.mat_no;*/
 
-					EXEC SQL UPDATE tymsm44 SET REST_ROLLER_NO = 'R1' WHERE MAT_NO = :tmmsm01.mat_no;
+					// DM8 适配 CHANGE-EXEC-030:更新 tymsm44 REST_ROLLER_NO;EXEC SQL 改为 CDbCommand(方案B)。
+					// 原方案A(EXEC SQL,完整保留):
+					// EXEC SQL UPDATE tymsm44 SET REST_ROLLER_NO = 'R1' WHERE MAT_NO = :tmmsm01.mat_no;
+					// 方案B(CDbCommand):
+						sqlstr = " UPDATE tymsm44 SET REST_ROLLER_NO = ? WHERE MAT_NO = ?";
+						cmd_exec.SetCommandText(sqlstr);
+						cmd_exec.Parameters.Set("p1", "R1");
+						cmd_exec.Parameters.Set("p2", tmmsm01.mat_no);
+						cmd_exec.Execute();
 				}
 				else if (strcmp(tymsm44.rest_roller_no, "A3") == 0 && x1j197b.mat_act_wt>8000 && 0 == strcmp(tep0002.code_desc_4_content, "ON"))
 				{
 					EDLog(1, 1, "重量来自计量系统");
-					EXEC SQL
-						UPDATE tmmsm01
-						set SCRAP_REMARK = to_char(:x1j197b.mat_act_wt)
-					where mat_no = :tmmsm01.mat_no and mat_position = '1'
-						;
+					// DM8 适配 CHANGE-EXEC-031:更新 ScrapRemark;EXEC SQL 改为 CDbCommand(方案B)。
+					// 原方案A(EXEC SQL,完整保留):
+					// EXEC SQL
+					// UPDATE tmmsm01
+					// set SCRAP_REMARK = to_char(:x1j197b.mat_act_wt)
+					// where mat_no = :tmmsm01.mat_no and mat_position = '1'
+					// ;
+					// 方案B(CDbCommand):
+						sqlstr = " update tmmsm01 set SCRAP_REMARK = to_char(?) where mat_no = ? and mat_position = '1'";
+						cmd_exec.SetCommandText(sqlstr);
+						cmd_exec.Parameters.Set("p1", x1j197b.mat_act_wt);
+						cmd_exec.Parameters.Set("p2", tmmsm01.mat_no);
+						cmd_exec.Execute();
 				}
 
 				if (0 == strcmp(tep0002.code_desc_5_content, "ON"))

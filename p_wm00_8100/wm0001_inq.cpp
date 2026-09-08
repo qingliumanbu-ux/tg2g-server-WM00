@@ -67,7 +67,16 @@ int f_wm0001_inq(EIClass * bcls_rec, EIClass * bcls_ret, CDbConnection * conn)
 			sprintf(s.msg, "物料种类【%s】无法识别。", (const char*)mat_line_type);
 			throw CApplicationException(-1, s.msg, log.Location);
 		}
-		sqlstr = "select a.stock_no,a.stock_desc,a.stock_wgt_max,a.mat_line_type,value(b.sum_wt,0) as current_wt from twm01 a"
+// DM8 适配 CHANGE-386:查询。见改写原因。
+// 改写原因：DB2 同义词 VALUE 改为 DM 文档支持的 NVL(两参数:返回第一个非空值)；依据 DM 官方文档,DM8 尚未实测。
+// 本共用分支面向 DM8,其他 DB_KIND 标签也会执行此 SQL;参数、结果列、条件与排序保持不变。
+// 原 SQL（完整保留）：
+		// sqlstr = "select a.stock_no,a.stock_desc,a.stock_wgt_max,a.mat_line_type,value(b.sum_wt,0) as current_wt from twm01 a"
+			// " left join(select b.stock_no, count(1) as count_num, sum(a.mat_act_wt) sum_wt from " + v_table_name + " a, twma2 b where a.mat_no = b.mat_no group by b.stock_no) b"
+			// " on a.stock_no = b.stock_no"
+			// " where a.mat_line_type = '" + mat_line_type .Trim()+ "'";
+// DM8 SQL：
+		sqlstr = "select a.stock_no,a.stock_desc,a.stock_wgt_max,a.mat_line_type,nvl(b.sum_wt,0) as current_wt from twm01 a"
 			" left join(select b.stock_no, count(1) as count_num, sum(a.mat_act_wt) sum_wt from " + v_table_name + " a, twma2 b where a.mat_no = b.mat_no group by b.stock_no) b"
 			" on a.stock_no = b.stock_no"
 			" where a.mat_line_type = '" + mat_line_type .Trim()+ "'";
